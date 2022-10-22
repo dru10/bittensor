@@ -6,6 +6,8 @@ from torch import nn
 import torch.nn.functional as F
 from types import SimpleNamespace
 from typing import Tuple, Optional
+import os
+from datetime import datetime
 
 from transformers import AutoModel,AutoTokenizer,AutoConfig, AutoModelForCausalLM
 from torch.nn.utils.rnn import pad_sequence
@@ -13,6 +15,13 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
 from loguru import logger; logger = logger.opt(colors=True)
+
+
+def get_filename():
+    current_time = str(datetime.now()).split()
+    filename = current_time[0] + "_" + current_time[1]
+    return filename
+
 
 class server(torch.nn.Module):
     def __init__(self, 
@@ -122,6 +131,12 @@ class server(torch.nn.Module):
         
         # -- keeps track of gradients applied
         self.backward_gradients_count = 0 
+
+        try:
+            self.loss_logfile = open(f"logs/{get_filename()}.txt", "w")
+        except FileNotFoundError:
+            os.mkdir("logs")
+            self.loss_logfile = open(f"logs/{get_filename()}.txt", "w")
         
     def set_fine_tuning_params(self) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
@@ -442,6 +457,7 @@ class server(torch.nn.Module):
 
             original_loss = self.get_loss_fct(_model_output.logits, tokens['input_ids']).item()
             message = f'Loss: {original_loss:.2f}'
+            self.loss_logfile.write(f"{original_loss} ")
             #message = 'Success'
 
             return message, _model_output, topk_tensor
